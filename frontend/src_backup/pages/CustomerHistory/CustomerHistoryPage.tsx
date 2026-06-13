@@ -7,7 +7,6 @@ import {
 } from 'lucide-react'
 import axios from 'axios'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
-import { API_BASE_URL } from '../../config/api'
 
 interface Purchase {
   article_id: string
@@ -89,7 +88,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     
     try {
       // Fetch purchase history
-      const response = await axios.get(`${API_BASE_URL}/customer/${customerId}/history`)
+      const response = await axios.get(`http://localhost:8000/customer/${customerId}/history`)
       const purchases = response.data.purchases || []
       setHistory(purchases)
       
@@ -103,7 +102,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
       
       // Fetch customer summary (total spending, etc)
       try {
-        const summaryResponse = await axios.get(`${API_BASE_URL}/customer/${customerId}/summary`)
+        const summaryResponse = await axios.get(`http://localhost:8000/customer/${customerId}/summary`)
         setCustomerSummary(summaryResponse.data)
       } catch {
         // Calculate summary from history if endpoint not available

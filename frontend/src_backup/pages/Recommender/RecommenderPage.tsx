@@ -9,7 +9,6 @@ import axios from 'axios'
 import { useRecConfig } from '../../hooks/useRecConfig'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { SkeletonCard } from '../../components/Skeleton'
-import { API_BASE_URL } from '../../config/api'
 
 interface Recommendation {
   article_id: string
@@ -131,7 +130,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
   const fetchCustomerInfo = async (id: string) => {
     setLoadingInfo(true)
     try {
-      const response = await axios.get(`${API_BASE_URL}/customer/${id}/info`)
+      const response = await axios.get(`http://localhost:8000/customer/${id}/info`)
       setCustomerInfo(response.data)
     } catch (error) {
       console.error('Error fetching customer info:', error)
@@ -156,7 +155,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     await fetchCustomerInfo(customerId.trim())
     
     try {
-      const response = await axios.post('${API_BASE_URL}/recommend', {
+      const response = await axios.post('http://localhost:8000/recommend', {
         customer_id: customerId,
         top_n: config.top_n,
         w_cf: config.w_cf,
@@ -207,7 +206,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
       
       // Kirim ke backend jika online
       try {
-        await axios.post('${API_BASE_URL}/feedback', {
+        await axios.post('http://localhost:8000/feedback', {
           article_id: articleId,
           customer_id: customerId,
           feedback: type,

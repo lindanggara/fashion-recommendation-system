@@ -11,9 +11,8 @@ import {
   Menu, X, Download, Calendar, TrendingDown, Filter, Gem
 } from 'lucide-react'
 import axios from 'axios'
-import { API_BASE_URL } from '../../config/api'
 
-const API = '${API_BASE_URL}'
+const API = 'http://localhost:8000'
 
 const PURPLE = {
   primary:      '#7c3aed',
