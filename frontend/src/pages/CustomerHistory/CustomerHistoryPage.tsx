@@ -1,8 +1,8 @@
 // frontend/src/pages/CustomerHistory/CustomerHistoryPage.tsx
 import { useState, useEffect } from 'react'
 import { 
-  Search, User, Package, Star, Clock, Heart, ShoppingBag, Award, 
-  Download, Filter, X, RefreshCw, TrendingUp, DollarSign, CreditCard,
+  Search, User, Package, Star, ShoppingBag, Award, 
+  Download, Filter, RefreshCw, DollarSign,
   ShoppingCart, RotateCcw, ChevronDown, Check
 } from 'lucide-react'
 import axios from 'axios'
@@ -32,7 +32,6 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   const isDark = theme === 'dark'
   const bg = isDark ? '#0f0f1a' : '#f4f3ff'
   const cardBg = isDark ? '#1e1e32' : '#ffffff'
-  const cardSub = isDark ? '#16162a' : '#f5f3ff'
   const text = isDark ? '#e2e8f0' : '#111827'
   const textLight = isDark ? '#94a3b8' : '#6b7280'
   const border = isDark ? '#2a2a4a' : '#ede9fe'
@@ -128,7 +127,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
       }
     } catch (error) {
       console.error('Error:', error)
-      if (showToast) showToast('Gagal mendapatkan history customer. Pastikan backend running di port 8000', 'error')
+      if (showToast) showToast('Gagal mendapatkan history customer. Pastikan backend running', 'error')
     } finally {
       setLoading(false)
     }
@@ -182,14 +181,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   const handleReorder = async (product: Purchase) => {
     setReordering(product.article_id)
     try {
-      // Simulate add to cart / reorder
       await new Promise(resolve => setTimeout(resolve, 800))
-      
-      // You can implement actual reorder logic here:
-      // - Add to cart API call
-      // - Redirect to product page
-      // - Show success message
-      
       if (showToast) showToast(`"${product.product_name}" added to cart! 🛒`, 'success')
     } catch (error) {
       console.error('Reorder error:', error)
@@ -202,13 +194,6 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount)
-  }
-
-  // Format date
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   return (

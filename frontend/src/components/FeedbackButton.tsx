@@ -1,8 +1,8 @@
 // src/components/FeedbackButton.tsx
-import { API_BASE_URL } from '../config/api'
 import { useState } from 'react'
 import { ThumbsUp, ThumbsDown } from 'lucide-react'
 import axios from 'axios'
+import { API_BASE_URL } from '../config/api'
 
 interface FeedbackButtonProps {
   articleId: string
@@ -19,7 +19,7 @@ export function FeedbackButton({ articleId, customerId, onFeedback }: FeedbackBu
     
     setLoading(true)
     try {
-      await axios.post('${API_BASE_URL}/feedback', {
+      await axios.post(`${API_BASE_URL}/feedback`, {
         article_id: articleId,
         customer_id: customerId,
         feedback: type,

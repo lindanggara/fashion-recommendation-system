@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { 
   Sparkles, Search, Star, ArrowRight, ShoppingBag, Zap, Heart, Crown, 
-  Filter, ChevronDown, User, Clock, TrendingUp, Palette, Grid3x3, List,
-  History, Trash2, X, ThumbsUp, ThumbsDown
+  Filter, ChevronDown, User, Clock, Palette, Grid3x3, List,
+  History, Trash2, ThumbsUp, ThumbsDown
 } from 'lucide-react'
 import axios from 'axios'
 import { useRecConfig } from '../../hooks/useRecConfig'
@@ -64,7 +64,6 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
   const [customerId, setCustomerId] = useState('')
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loadingInfo, setLoadingInfo] = useState(false)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [searched, setSearched] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
@@ -129,15 +128,12 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
 
   // Fetch customer info
   const fetchCustomerInfo = async (id: string) => {
-    setLoadingInfo(true)
     try {
       const response = await axios.get(`${API_BASE_URL}/customer/${id}/info`)
       setCustomerInfo(response.data)
     } catch (error) {
       console.error('Error fetching customer info:', error)
       setCustomerInfo(null)
-    } finally {
-      setLoadingInfo(false)
     }
   }
 
@@ -156,7 +152,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     await fetchCustomerInfo(customerId.trim())
     
     try {
-      const response = await axios.post('${API_BASE_URL}/recommend', {
+      const response = await axios.post(`${API_BASE_URL}/recommend`, {
         customer_id: customerId,
         top_n: config.top_n,
         w_cf: config.w_cf,
@@ -173,7 +169,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
       }
     } catch (error) {
       console.error('Error:', error)
-      if (showToast) showToast('Gagal mendapatkan rekomendasi. Pastikan backend berjalan di port 8000', 'error')
+      if (showToast) showToast('Gagal mendapatkan rekomendasi. Pastikan backend berjalan', 'error')
     } finally {
       setLoading(false)
     }
@@ -207,7 +203,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
       
       // Kirim ke backend jika online
       try {
-        await axios.post('${API_BASE_URL}/feedback', {
+        await axios.post(`${API_BASE_URL}/feedback`, {
           article_id: articleId,
           customer_id: customerId,
           feedback: type,
