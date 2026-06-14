@@ -29,6 +29,13 @@ interface CustomerSummary {
   last_purchase: string
 }
 
+interface TopCustomer {
+  customer_id: string
+  transaction_count: number
+  display_name: string
+  color: string
+}
+
 // Preview data (fallback jika backend belum siap)
 const PREVIEW_HISTORY: Purchase[] = [
   { article_id: '0706016001', product_name: 'Ladies Classic Tee', category: 'Upper body', colour: 'Black', rating: 5, price: 299000 },
@@ -48,12 +55,6 @@ const PREVIEW_SUMMARY: CustomerSummary = {
   last_purchase: '2024-01-15'
 }
 
-// Contoh Customer ID yang valid
-const EXAMPLE_CUSTOMERS = [
-  { id: '00007d2de826758b65a93dd24ce629ed66842531df6699338c5570910a014cc2', label: '🛍️ Customer Aktif', color: '#10b981' },
-  { id: '0000f9c9e9d5e2a1b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6', label: '⭐ Customer Premium', color: '#f59e0b' },
-]
-
 export default function CustomerHistoryPage({ theme, showToast }: { theme: string; showToast?: (message: string, type: 'success' | 'error' | 'info') => void }) {
   const isDark = theme === 'dark'
   const bg = isDark ? '#0f0f1a' : '#f4f3ff'
@@ -72,6 +73,10 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   const [searched, setSearched] = useState(false)
   const [customerSummary, setCustomerSummary] = useState<CustomerSummary | null>(null)
   const [showPreview, setShowPreview] = useState(true)
+  
+  // Top customers dari API
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([])
+  const [loadingTopCustomers, setLoadingTopCustomers] = useState(false)
   
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -102,12 +107,35 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     enabled: true
   })
 
+  // Fetch top customers dari backend
+  const fetchTopCustomers = async () => {
+    setLoadingTopCustomers(true)
+    try {
+      const response = await axios.get(`${API_BASE_URL}/customers/top?limit=3`)
+      const customers = response.data.customers || []
+      setTopCustomers(customers)
+    } catch (error) {
+      console.error('Error fetching top customers:', error)
+      // Fallback jika API gagal
+      setTopCustomers([
+        { customer_id: 'e238725cbff3774b711407cc000f42c0ddabf6b07eb0e311ffb5fc72e862a34b', transaction_count: 18, display_name: 'Top 1', color: '#10b981' },
+        { customer_id: '0bf4c6fd4e9d33f9bfb807bb78348cbf5c565846ff4006acf5c1b9aea77b0e54', transaction_count: 17, display_name: 'Top 2', color: '#f59e0b' },
+        { customer_id: '49beaacac0c7801c2ce2d189efe525fe80b5d37e46ed05b50a4cd88e34d0748f', transaction_count: 17, display_name: 'Top 3', color: '#06b6d4' },
+      ])
+    } finally {
+      setLoadingTopCustomers(false)
+    }
+  }
+
   // Load search history dari localStorage
   useEffect(() => {
     const savedHistory = localStorage.getItem('customer_search_history')
     if (savedHistory) {
       setSearchHistory(JSON.parse(savedHistory))
     }
+    
+    // Fetch top customers
+    fetchTopCustomers()
   }, [])
 
   // Save search history ke localStorage
@@ -148,7 +176,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Load contoh customer
+  // Load contoh customer dari top customers
   const loadExampleCustomer = async (id: string, label: string) => {
     setCustomerId(id)
     setShowPreview(false)
@@ -505,10 +533,10 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
           )}
         </div>
 
-        {/* ========== PREVIEW SECTION ========== */}
+        {/* ========== PREVIEW SECTION dengan Dynamic Top Customers ========== */}
         {!searched && showPreview && (
           <div style={{ marginTop: 32 }}>
-            {/* Contoh Customer ID */}
+            {/* Contoh Customer ID - Dynamic dari Backend */}
             <div style={{ 
               background: `linear-gradient(135deg, ${primary}05, ${primary}02)`,
               borderRadius: 24, 
@@ -521,35 +549,43 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                 <span style={{ fontSize: 15, fontWeight: 700, color: text }}>Coba dengan Contoh Customer ID</span>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {EXAMPLE_CUSTOMERS.map((customer) => (
-                  <button
-                    key={customer.id}
-                    onClick={() => loadExampleCustomer(customer.id, customer.label)}
-                    style={{
-                      padding: '10px 24px',
-                      background: cardBg,
-                      border: `1px solid ${border}`,
-                      borderRadius: 40,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: text,
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = primary
-                      e.currentTarget.style.color = 'white'
-                      e.currentTarget.style.borderColor = primary
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = cardBg
-                      e.currentTarget.style.color = text
-                      e.currentTarget.style.borderColor = border
-                    }}
-                  >
-                    {customer.label}
-                  </button>
-                ))}
+                {loadingTopCustomers ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ width: 80, height: 36, background: `${primary}10`, borderRadius: 40, animation: 'pulse 1s infinite' }} />
+                    <div style={{ width: 80, height: 36, background: `${primary}10`, borderRadius: 40, animation: 'pulse 1s infinite' }} />
+                    <div style={{ width: 80, height: 36, background: `${primary}10`, borderRadius: 40, animation: 'pulse 1s infinite' }} />
+                  </div>
+                ) : (
+                  topCustomers.map((customer) => (
+                    <button
+                      key={customer.customer_id}
+                      onClick={() => loadExampleCustomer(customer.customer_id, customer.display_name)}
+                      style={{
+                        padding: '10px 24px',
+                        background: cardBg,
+                        border: `1px solid ${border}`,
+                        borderRadius: 40,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: text,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = primary
+                        e.currentTarget.style.color = 'white'
+                        e.currentTarget.style.borderColor = primary
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = cardBg
+                        e.currentTarget.style.color = text
+                        e.currentTarget.style.borderColor = border
+                      }}
+                    >
+                      🏆 {customer.display_name}
+                    </button>
+                  ))
+                )}
               </div>
               <p style={{ fontSize: 12, color: textLight, textAlign: 'center', marginTop: 16 }}>
                 Klik salah satu contoh di atas untuk melihat riwayat pembelian

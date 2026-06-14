@@ -94,16 +94,13 @@ def cached(ttl_seconds=300):
 def load_model():
     global recommender, popular_items, articles_df, ratings_df, valid_customers, transactions_df, monthly_counts_df
 
-    # PERBAIKAN PATH UNTUK STRUKTUR backend/app/main.py
     current_file = Path(__file__).resolve()
     app_dir = current_file.parent
     backend_dir = app_dir.parent
-    project_root = backend_dir.parent
     
-    model_path = project_root / "models"
-    data_path = project_root / "data"
+    model_path = backend_dir / "models"
+    data_path = backend_dir / "data"
     
-    print(f"📂 Project root: {project_root}")
     print(f"📂 Models path: {model_path}")
     print(f"📂 Data path: {data_path}")
 
@@ -232,6 +229,7 @@ async def root():
             "/analytics/export",
             "/customer/{customer_id}/info",
             "/customer/{customer_id}/history",
+            "/customers/top",
             "/products/search",
             "/recommend",
             "/feedback"
@@ -549,6 +547,42 @@ async def get_customer_history(customer_id: str):
         "customer_id": customer_id,
         "purchases": result,
         "total_purchases": len(result)
+    }
+
+# ============================================================
+# TOP CUSTOMERS FOR EXAMPLE (NEW ENDPOINT)
+# ============================================================
+
+@app.get("/customers/top")
+async def get_top_customers_by_transactions(limit: int = 5):
+    """Get top customers by number of transactions (for example customers)"""
+    if ratings_df is None:
+        raise HTTPException(status_code=503, detail="Data not loaded")
+    
+    # Group by customer_id and count transactions
+    top_customers = (
+        ratings_df.groupby('customer_id')
+        .size()
+        .sort_values(ascending=False)
+        .head(limit)
+        .reset_index()
+    )
+    top_customers.columns = ['customer_id', 'transaction_count']
+    
+    # Format response with colors
+    result = []
+    colors = ['#10b981', '#f59e0b', '#06b6d4', '#ec4899', '#8b5cf6']
+    for idx, row in top_customers.iterrows():
+        result.append({
+            "customer_id": row['customer_id'],
+            "transaction_count": int(row['transaction_count']),
+            "display_name": f"Top {idx + 1}",
+            "color": colors[idx % len(colors)]
+        })
+    
+    return {
+        "customers": result,
+        "total": len(result)
     }
 
 # ============================================================
