@@ -1,13 +1,3 @@
----
-
-title: FashionRec Backend
-emoji: 👗
-colorFrom: purple
-colorTo: pink
-sdk: docker
-app_port: 7860
---------------
-
 # 👗 Fashion Recommendation System
 
 > Sistem rekomendasi fashion berbasis Machine Learning menggunakan Collaborative Filtering, Content-Based Filtering, dan Hybrid Recommendation.
