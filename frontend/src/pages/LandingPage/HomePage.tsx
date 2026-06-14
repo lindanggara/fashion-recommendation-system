@@ -184,7 +184,7 @@ function ProductMockup() {
           {['#f87171', '#fbbf24', '#4ade80'].map((c, i) => <div key={i} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
         </div>
         <div style={{ flex: 1, background: P.white, borderRadius: 6, padding: '4px 12px', fontSize: 11, color: P.sub, border: `1px solid ${P.border}`, textAlign: 'center', maxWidth: 320, margin: '0 auto' }}>
-          localhost:5173/dashboard
+          https://fashion-recommendation-system-phi.vercel.app/
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 22, height: 22, borderRadius: '50%', background: P.indigo, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
