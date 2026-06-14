@@ -95,17 +95,18 @@ def load_model():
     global recommender, popular_items, articles_df, ratings_df, valid_customers, transactions_df, monthly_counts_df
 
     # PERBAIKAN PATH UNTUK STRUKTUR backend/app/main.py
+    # PERBAIKAN PATH UNTUK STRUKTUR backend/app/main.py
     current_file = Path(__file__).resolve()
     app_dir = current_file.parent
     backend_dir = app_dir.parent
-    project_root = backend_dir.parent
     
-    model_path = project_root / "models"
-    data_path = project_root / "data"
+    model_path = backend_dir / "models"
+    data_path = backend_dir / "data"
     
-    print(f"📂 Project root: {project_root}")
+
     print(f"📂 Models path: {model_path}")
     print(f"📂 Data path: {data_path}")
+
 
     # 1. Load SVD Model
     try:

@@ -21,18 +21,16 @@ warnings.filterwarnings('ignore')
 # ============================================================
 print("Loading dataset...")
 
-articles     = pd.read_csv('articles.csv')
-customers    = pd.read_csv('customers.csv')
-
-# Load merata dari seluruh periode — skip rows acak supaya dapat semua bulan
-transactions = pd.read_csv('transactions_train.csv',
+# Ganti menjadi (path absolut atau relatif dari folder notebooks)
+articles     = pd.read_csv('data/articles.csv')
+customers    = pd.read_csv('data/customers.csv')
+transactions = pd.read_csv('data/transactions_train.csv', 
                            dtype={'article_id': str, 'customer_id': str})
-# Ambil sample 500K yang merata dari seluruh periode
 transactions = transactions.sample(n=500000, random_state=42)
 
-print(f"Articles    : {articles.shape}")
-print(f"Customers   : {customers.shape}")
-print(f"Transactions: {transactions.shape}")
+print(f"Articles: {len(articles)}")
+print(f"Customers: {len(customers)}")
+print(f"Transactions sampled: {len(transactions)}")
 
 # ============================================================
 # STEP 2 — PREPROCESSING
@@ -109,7 +107,7 @@ axes[1][1].set_xlabel('Rating')
 
 plt.suptitle('EDA — H&M Fashion Dataset (Industri Retail Tekstil)', fontsize=14)
 plt.tight_layout()
-plt.savefig('eda_fashion.png', dpi=150, bbox_inches='tight')
+plt.savefig('docs/eda_fashion.png', dpi=150, bbox_inches='tight')
 plt.show()
 print("EDA saved: eda_fashion.png")
 
@@ -327,7 +325,7 @@ def visualisasi_hasil(hasil_df, customer_id):
         fontsize=12
     )
     plt.tight_layout()
-    plt.savefig('hasil_rekomendasi_fashion.png', dpi=150, bbox_inches='tight')
+    plt.savefig('docs/hasil_rekomendasi_fashion.png', dpi=150, bbox_inches='tight')
     plt.show()
     print("Saved: hasil_rekomendasi_fashion.png")
 
@@ -368,3 +366,40 @@ evaluasi(n_test=100, top_n=5)
 
 print("\n✅ Selesai!")
 print("Output: eda_fashion.png, hasil_rekomendasi_fashion.png")
+
+# ============================================================
+# SAVE MODELS FOR DEPLOYMENT
+# ============================================================
+print("\nSaving models...")
+
+import joblib
+import os
+
+# Buat folder models jika belum ada
+os.makedirs('models', exist_ok=True)
+
+# Save SVD model
+joblib.dump(svd, 'models/model_svd.pkl')
+print("✅ Saved: model_svd.pkl")
+
+# Save TF-IDF vectorizer and matrix
+joblib.dump(tfidf, 'models/model_tfidf.pkl')
+joblib.dump(cos_sim, 'models/model_cossim.pkl')
+print("✅ Saved: model_tfidf.pkl, model_cossim.pkl")
+
+# Save sample articles and indices
+joblib.dump(sample_articles, 'models/data_sample_articles.pkl')
+joblib.dump(article_idx, 'models/article_idx.pkl')
+print("✅ Saved: data_sample_articles.pkl, article_idx.pkl")
+
+# Save valid customers list
+with open('models/valid_customers.json', 'w') as f:
+    import json
+    json.dump(valid_customers, f)
+print("✅ Saved: valid_customers.json")
+
+# Save ratings for deployment (optional)
+ratings_filtered.to_parquet('models/data_ratings.parquet')
+print("✅ Saved: data_ratings.parquet")
+
+print("All models saved to models/")

@@ -1,17 +1,11 @@
-FROM python:3.11-slim
+﻿FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy requirements
-COPY backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy semua file backend
-COPY backend/ ./backend/
-COPY models/ ./models/
-COPY data/ ./data/
-
-WORKDIR /app/backend
+COPY . .
 
 EXPOSE 7860
 
