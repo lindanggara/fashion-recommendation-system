@@ -249,7 +249,7 @@ fashion-recommendation-system/
 ## 📸 Screenshots
 
 ### Dashboard Analytics
-![Dashboard](docs\dashboard.png)
+![Dashboard](https://github.com/lindanggara/fashion-recommendation-system/blob/main/docs/dashboard.png)
 
 ### Recommendation Results
 
