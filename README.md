@@ -259,12 +259,11 @@ fashion-recommendation-system/
 ## 📸 Screenshots
 
 ### Dashboard Analytics
-
-![Dashboard](docs/eda_fashion.png)
+![Dashboard](docs\dashboard.png)
 
 ### Recommendation Results
 
-![Recommendation](docs/hasil_rekomendasi_fashion.png)
+![Recommendation](docs/rekomendasi.png)
 
 ---
 
