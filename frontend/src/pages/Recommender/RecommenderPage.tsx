@@ -51,6 +51,22 @@ const COLORFUL = [
   '#14b8a6',  // teal
 ]
 
+// Data preview (fallback jika backend belum siap)
+const PREVIEW_RECOMMENDATIONS: Recommendation[] = [
+  { article_id: '0706016001', product_name: 'Ladies Classic Tee', category: 'Upper body', colour: 'Black', cf_score: 0.85, cbf_score: 0.78, hybrid_score: 0.82 },
+  { article_id: '0448509014', product_name: 'Slim Fit Denim Jeans', category: 'Lower body', colour: 'Dark Blue', cf_score: 0.82, cbf_score: 0.75, hybrid_score: 0.79 },
+  { article_id: '0372860001', product_name: 'Basic Hoodie', category: 'Upper body', colour: 'Grey', cf_score: 0.79, cbf_score: 0.72, hybrid_score: 0.76 },
+  { article_id: '0610776002', product_name: 'Ribbed Jersey Top', category: 'Upper body', colour: 'White', cf_score: 0.76, cbf_score: 0.70, hybrid_score: 0.73 },
+  { article_id: '0156231001', product_name: 'Floral Wrap Dress', category: 'Full body', colour: 'Pink', cf_score: 0.73, cbf_score: 0.68, hybrid_score: 0.71 },
+]
+
+// Contoh Customer ID yang valid
+const EXAMPLE_CUSTOMERS = [
+  { id: '00007d2de826758b65a93dd24ce629ed66842531df6699338c5570910a014cc2', label: '🛍️ Customer Aktif', color: '#10b981' },
+  { id: '0000f9c9e9d5e2a1b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6', label: '⭐ Customer Premium', color: '#f59e0b' },
+  { id: '000123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd', label: '🆕 Customer Baru', color: '#06b6d4' },
+]
+
 export default function RecommenderPage({ theme, showToast }: { theme: string; showToast?: (message: string, type: 'success' | 'error' | 'info') => void }) {
   const isDark = theme === 'dark'
   const bg = isDark ? '#0f0f1a' : PURPLE.bgLight
@@ -67,6 +83,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [searched, setSearched] = useState(false)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [showPreview, setShowPreview] = useState(true) // State untuk menampilkan preview
   
   const [sortBy, setSortBy] = useState<SortBy>('hybrid_score')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
@@ -137,12 +154,50 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     }
   }
 
+  // Load contoh customer (preview)
+  const loadExampleCustomer = async (id: string, label: string) => {
+    setCustomerId(id)
+    setShowPreview(false)
+    await handleSearchWithId(id)
+    if (showToast) showToast(`Memuat rekomendasi untuk ${label}`, 'info')
+  }
+
+  const handleSearchWithId = async (id: string) => {
+    setLoading(true)
+    setSearched(true)
+    setCurrentPage(1)
+    setShowHistory(false)
+    
+    saveToHistory(id)
+    await fetchCustomerInfo(id)
+    
+    try {
+      const response = await axios.post(`${API_BASE_URL}/recommend`, {
+        customer_id: id,
+        top_n: config.top_n,
+        w_cf: config.w_cf,
+        w_cbf: config.w_cbf
+      })
+      const recs = response.data.recommendations || []
+      setRecommendations(recs)
+      if (showToast && recs.length === 0) {
+        showToast('Tidak ada rekomendasi. Customer perlu minimal 3 riwayat pembelian', 'info')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      if (showToast) showToast('Gagal mendapatkan rekomendasi. Pastikan backend berjalan', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSearch = async () => {
     if (!customerId.trim()) {
       if (showToast) showToast('Masukkan Customer ID terlebih dahulu', 'error')
       return
     }
     
+    setShowPreview(false)
     setLoading(true)
     setSearched(true)
     setCurrentPage(1)
@@ -185,7 +240,6 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
 
   // ========== FEEDBACK FUNCTION ==========
   const sendFeedback = async (articleId: string, type: 'like' | 'dislike') => {
-    // Jika sudah memberi feedback yang sama, toggle off
     if (feedbacks[articleId] === type) {
       setFeedbacks(prev => ({ ...prev, [articleId]: null }))
       localStorage.setItem('recommender_feedbacks', JSON.stringify({ ...feedbacks, [articleId]: null }))
@@ -196,12 +250,10 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     setFeedbackLoading(prev => ({ ...prev, [articleId]: true }))
     
     try {
-      // Simpan ke localStorage dulu (offline support)
       const newFeedbacks = { ...feedbacks, [articleId]: type }
       setFeedbacks(newFeedbacks)
       localStorage.setItem('recommender_feedbacks', JSON.stringify(newFeedbacks))
       
-      // Kirim ke backend jika online
       try {
         await axios.post(`${API_BASE_URL}/feedback`, {
           article_id: articleId,
@@ -217,7 +269,6 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     } catch (error) {
       console.error('Feedback error:', error)
       if (showToast) showToast('Gagal mengirim feedback', 'error')
-      // Revert feedback
       setFeedbacks(prev => ({ ...prev, [articleId]: null }))
     } finally {
       setFeedbackLoading(prev => ({ ...prev, [articleId]: false }))
@@ -278,9 +329,9 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
   ]
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.7) return COLORFUL[0] // hijau
-    if (score >= 0.5) return COLORFUL[1] // orange
-    return COLORFUL[3] // merah
+    if (score >= 0.7) return COLORFUL[0]
+    if (score >= 0.5) return COLORFUL[1]
+    return COLORFUL[3]
   }
 
   const getScoreBg = (score: number) => {
@@ -301,7 +352,6 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
-  // Loading Skeleton for recommendations
   const LoadingSkeleton = () => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
       {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} />)}
@@ -312,7 +362,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
     <div style={{ background: bg, minHeight: 'calc(100vh - 120px)', fontFamily: "'Inter',-apple-system,sans-serif", overflowX: 'hidden' }}>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 2rem 60px', boxSizing: 'border-box' }}>
 
-        {/* Hero Section - ICON UNGU */}
+        {/* Hero Section */}
         <div style={{ 
           background: `linear-gradient(135deg, ${PURPLE.bgLight}, ${isDark ? '#1a1540' : '#e0d9ff'})`, 
           borderRadius: 32, 
@@ -349,7 +399,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
           </p>
         </div>
 
-        {/* Search Section - ICON UNGU */}
+        {/* Search Section */}
         <div ref={searchContainerRef} style={{ maxWidth: 800, margin: '0 auto', marginBottom: 40, position: 'relative' }}>
           <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: PURPLE.primary, marginBottom: 10, letterSpacing: 1 }}>
             CUSTOMER ID
@@ -490,7 +540,147 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
           </p>
         </div>
 
-        {/* Customer Info - ICON UNGU */}
+        {/* ========== PREVIEW SECTION ========== */}
+        {!searched && showPreview && (
+          <div style={{ marginTop: 32 }}>
+            {/* Contoh Customer ID */}
+            <div style={{ 
+              background: `linear-gradient(135deg, ${PURPLE.primary}05, ${PURPLE.primary}02)`,
+              borderRadius: 24, 
+              padding: '24px',
+              marginBottom: 28,
+              border: `1px solid ${border}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <Sparkles size={20} color={PURPLE.primary} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: text }}>Contoh Customer ID</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {EXAMPLE_CUSTOMERS.map((customer) => (
+                  <button
+                    key={customer.id}
+                    onClick={() => loadExampleCustomer(customer.id, customer.label)}
+                    style={{
+                      padding: '10px 24px',
+                      background: cardBg,
+                      border: `1px solid ${border}`,
+                      borderRadius: 40,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: text,
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = PURPLE.primary
+                      e.currentTarget.style.color = 'white'
+                      e.currentTarget.style.borderColor = PURPLE.primary
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = cardBg
+                      e.currentTarget.style.color = text
+                      e.currentTarget.style.borderColor = border
+                    }}
+                  >
+                    {customer.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: textLight, textAlign: 'center', marginTop: 16 }}>
+                Klik salah satu contoh di atas untuk melihat rekomendasi
+              </p>
+            </div>
+
+            {/* Preview 5 Rekomendasi */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <Star size={18} color={PURPLE.primary} fill={PURPLE.primary} />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: text, margin: 0 }}>
+                  5 Contoh Rekomendasi Produk
+                </h3>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+                {PREVIEW_RECOMMENDATIONS.map((rec, idx) => (
+                  <div 
+                    key={rec.article_id}
+                    style={{ 
+                      background: cardBg, 
+                      borderRadius: 20,
+                      border: `1px solid ${border}`,
+                      overflow: 'hidden',
+                      transition: 'all 0.2s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-4px)'
+                      e.currentTarget.style.boxShadow = `0 12px 24px -12px ${PURPLE.primary}50`
+                      e.currentTarget.style.borderColor = PURPLE.primary
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = 'none'
+                      e.currentTarget.style.borderColor = border
+                    }}
+                  >
+                    <div style={{ 
+                      padding: '16px', 
+                      background: isDark ? '#16162a' : '#faf5ff',
+                      borderBottom: `1px solid ${border}`
+                    }}>
+                      <div style={{
+                        background: `linear-gradient(135deg, ${COLORFUL[idx % COLORFUL.length]}, ${COLORFUL[idx % COLORFUL.length]}80)`,
+                        width: 36, height: 36, borderRadius: 12,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 700, fontSize: 16, color: 'white'
+                      }}>{idx + 1}</div>
+                    </div>
+                    <div style={{ padding: '16px' }}>
+                      <div style={{ 
+                        background: `${COLORFUL[idx % COLORFUL.length]}10`, 
+                        borderRadius: 16,
+                        padding: '20px', 
+                        textAlign: 'center', 
+                        marginBottom: 14 
+                      }}>
+                        <ShoppingBag size={36} color={COLORFUL[idx % COLORFUL.length]} />
+                      </div>
+                      <h4 style={{ fontSize: 14, fontWeight: 700, color: text, marginBottom: 6 }}>
+                        {rec.product_name}
+                      </h4>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <span style={{ background: `${PURPLE.primary}10`, padding: '3px 10px', borderRadius: 16, fontSize: 10, color: PURPLE.primary }}>{rec.category}</span>
+                        <span style={{ background: `${PURPLE.primary}10`, padding: '3px 10px', borderRadius: 16, fontSize: 10, color: PURPLE.primary }}>{rec.colour}</span>
+                      </div>
+                    </div>
+                    <div style={{ 
+                      padding: '12px 16px', 
+                      borderTop: `1px solid ${border}`, 
+                      background: isDark ? '#0f0f1a' : '#faf5ff',
+                      display: 'flex',
+                      justifyContent: 'center'
+                    }}>
+                      <span style={{ 
+                        background: getScoreBg(rec.hybrid_score),
+                        padding: '4px 14px',
+                        borderRadius: 20,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: getScoreColor(rec.hybrid_score)
+                      }}>
+                        {getScoreLabel(rec.hybrid_score)} • Score: {rec.hybrid_score}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: textLight, textAlign: 'center', marginTop: 20 }}>
+                💡 Masukkan Customer ID di atas untuk rekomendasi personal
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Customer Info */}
         {customerInfo && !loading && searched && (
           <div style={{
             background: `linear-gradient(135deg, ${PURPLE.primary}10, ${PURPLE.primary}05)`,
@@ -534,7 +724,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
           </div>
         )}
 
-        {/* Loading State - Menggunakan Skeleton */}
+        {/* Loading State */}
         {loading && <LoadingSkeleton />}
 
         {/* Empty State */}
@@ -545,6 +735,27 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
             </div>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: text, marginBottom: 6 }}>Tidak Ada Rekomendasi</h3>
             <p style={{ fontSize: 13, color: textLight }}>Customer perlu minimal 3 riwayat pembelian</p>
+            <button
+              onClick={() => {
+                setShowPreview(true)
+                setSearched(false)
+                setRecommendations([])
+                setCustomerInfo(null)
+              }}
+              style={{
+                marginTop: 16,
+                background: `${PURPLE.primary}10`,
+                border: 'none',
+                padding: '8px 20px',
+                borderRadius: 30,
+                color: PURPLE.primary,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 500
+              }}
+            >
+              Lihat Contoh Rekomendasi
+            </button>
           </div>
         )}
 
@@ -573,7 +784,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
               </div>
 
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                {/* Sort Dropdown - ICON UNGU */}
+                {/* Sort Dropdown */}
                 <div ref={sortMenuRef} style={{ position: 'relative' }}>
                   <button
                     onClick={() => setShowSortMenu(!showSortMenu)}
@@ -704,7 +915,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
               Diurutkan berdasarkan {sortOptions.find(o => o.value === sortBy)?.label} ({sortOrder === 'desc' ? 'tertinggi ke terendah' : 'terendah ke tertinggi'})
             </div>
 
-            {/* GRID VIEW - DENGAN FEEDBACK BUTTON */}
+            {/* GRID VIEW */}
             {showViewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
                 {getPaginatedRecommendations().map((rec, idx) => {
@@ -822,7 +1033,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
                         </div>
                       </div>
 
-                      {/* ========== FEEDBACK BUTTON ========== */}
+                      {/* FEEDBACK BUTTON */}
                       <div style={{ 
                         padding: '10px 18px 14px 18px', 
                         borderTop: `1px solid ${border}`,
@@ -895,7 +1106,7 @@ export default function RecommenderPage({ theme, showToast }: { theme: string; s
                 })}
               </div>
             ) : (
-              /* LIST VIEW - DENGAN FEEDBACK BUTTON */
+              /* LIST VIEW */
               <div style={{ background: cardBg, borderRadius: 24, border: `1px solid ${border}`, overflow: 'hidden' }}>
                 <div style={{
                   display: 'grid',

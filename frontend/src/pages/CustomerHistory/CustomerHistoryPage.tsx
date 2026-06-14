@@ -1,9 +1,10 @@
 // frontend/src/pages/CustomerHistory/CustomerHistoryPage.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Search, User, Package, Star, ShoppingBag, Award, 
   Download, Filter, RefreshCw, DollarSign,
-  ShoppingCart, RotateCcw, ChevronDown, Check
+  ShoppingCart, RotateCcw, ChevronDown, Check,
+  History, Trash2, Clock, Sparkles
 } from 'lucide-react'
 import axios from 'axios'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -28,6 +29,31 @@ interface CustomerSummary {
   last_purchase: string
 }
 
+// Preview data (fallback jika backend belum siap)
+const PREVIEW_HISTORY: Purchase[] = [
+  { article_id: '0706016001', product_name: 'Ladies Classic Tee', category: 'Upper body', colour: 'Black', rating: 5, price: 299000 },
+  { article_id: '0448509014', product_name: 'Slim Fit Denim Jeans', category: 'Lower body', colour: 'Dark Blue', rating: 4, price: 599000 },
+  { article_id: '0372860001', product_name: 'Basic Hoodie', category: 'Upper body', colour: 'Grey', rating: 5, price: 399000 },
+  { article_id: '0610776002', product_name: 'Ribbed Jersey Top', category: 'Upper body', colour: 'White', rating: 4, price: 199000 },
+  { article_id: '0156231001', product_name: 'Floral Wrap Dress', category: 'Full body', colour: 'Pink', rating: 5, price: 499000 },
+]
+
+// Preview summary
+const PREVIEW_SUMMARY: CustomerSummary = {
+  total_spent: 1995000,
+  total_items: 5,
+  avg_rating: 4.6,
+  favorite_category: 'Upper body',
+  favorite_colour: 'Black',
+  last_purchase: '2024-01-15'
+}
+
+// Contoh Customer ID yang valid
+const EXAMPLE_CUSTOMERS = [
+  { id: '00007d2de826758b65a93dd24ce629ed66842531df6699338c5570910a014cc2', label: '🛍️ Customer Aktif', color: '#10b981' },
+  { id: '0000f9c9e9d5e2a1b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6', label: '⭐ Customer Premium', color: '#f59e0b' },
+]
+
 export default function CustomerHistoryPage({ theme, showToast }: { theme: string; showToast?: (message: string, type: 'success' | 'error' | 'info') => void }) {
   const isDark = theme === 'dark'
   const bg = isDark ? '#0f0f1a' : '#f4f3ff'
@@ -45,6 +71,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   const [history, setHistory] = useState<Purchase[]>([])
   const [searched, setSearched] = useState(false)
   const [customerSummary, setCustomerSummary] = useState<CustomerSummary | null>(null)
+  const [showPreview, setShowPreview] = useState(true)
   
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -57,6 +84,12 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   // Reorder states
   const [reordering, setReordering] = useState<string | null>(null)
 
+  // Search History states
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const searchContainerRef = useRef<HTMLDivElement>(null)
+  const historyDropdownRef = useRef<HTMLDivElement>(null)
+
   // Keyboard Shortcuts
   useKeyboardShortcuts({
     onSearch: () => {
@@ -64,9 +97,33 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     },
     onEscape: () => {
       setShowFilterDropdown(false)
+      setShowHistory(false)
     },
     enabled: true
   })
+
+  // Load search history dari localStorage
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('customer_search_history')
+    if (savedHistory) {
+      setSearchHistory(JSON.parse(savedHistory))
+    }
+  }, [])
+
+  // Save search history ke localStorage
+  const saveToHistory = (id: string) => {
+    const newHistory = [id, ...searchHistory.filter(h => h !== id)].slice(0, 10)
+    setSearchHistory(newHistory)
+    localStorage.setItem('customer_search_history', JSON.stringify(newHistory))
+  }
+
+  // Clear history
+  const clearHistory = () => {
+    setSearchHistory([])
+    localStorage.removeItem('customer_search_history')
+    setShowHistory(false)
+    if (showToast) showToast('Riwayat pencarian dihapus', 'success')
+  }
 
   // Fetch categories from history
   useEffect(() => {
@@ -76,18 +133,94 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     }
   }, [history])
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (historyDropdownRef.current && !historyDropdownRef.current.contains(event.target as Node)) {
+        const isHistoryButton = (event.target as HTMLElement).closest('.history-button')
+        const isSearchInput = (event.target as HTMLElement).closest('.customer-history-input')
+        if (!isHistoryButton && !isSearchInput) {
+          setShowHistory(false)
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Load contoh customer
+  const loadExampleCustomer = async (id: string, label: string) => {
+    setCustomerId(id)
+    setShowPreview(false)
+    setShowHistory(false)
+    
+    setLoading(true)
+    setSearched(true)
+    setSelectedCategory('all')
+    
+    saveToHistory(id)
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/customer/${id}/history`)
+      const purchases = response.data.purchases || []
+      setHistory(purchases)
+      
+      if (showToast) {
+        if (purchases.length > 0) {
+          showToast(`Ditemukan ${purchases.length} riwayat pembelian untuk ${label}! 📋`, 'success')
+        } else {
+          showToast(`Customer ${label} tidak memiliki riwayat pembelian`, 'info')
+        }
+      }
+      
+      try {
+        const summaryResponse = await axios.get(`${API_BASE_URL}/customer/${id}/summary`)
+        setCustomerSummary(summaryResponse.data)
+      } catch {
+        const totalSpent = purchases.reduce((sum: number, item: Purchase) => sum + (item.price || 0), 0)
+        const avgRating = purchases.length > 0 ? purchases.reduce((sum: number, item: Purchase) => sum + item.rating, 0) / purchases.length : 0
+        const categoryCount: Record<string, number> = {}
+        const colourCount: Record<string, number> = {}
+        purchases.forEach((item: Purchase) => {
+          categoryCount[item.category] = (categoryCount[item.category] || 0) + 1
+          colourCount[item.colour] = (colourCount[item.colour] || 0) + 1
+        })
+        const favoriteCategory = Object.entries(categoryCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
+        const favoriteColour = Object.entries(colourCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '-'
+        setCustomerSummary({
+          total_spent: totalSpent,
+          total_items: purchases.length,
+          avg_rating: avgRating,
+          favorite_category: favoriteCategory,
+          favorite_colour: favoriteColour,
+          last_purchase: purchases[0]?.purchase_date || new Date().toISOString()
+        })
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      if (showToast) showToast('Gagal mendapatkan history customer', 'error')
+      setShowPreview(true)
+      setSearched(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSearch = async () => {
     if (!customerId.trim()) {
       if (showToast) showToast('Masukkan Customer ID terlebih dahulu', 'error')
       return
     }
     
+    setShowPreview(false)
+    saveToHistory(customerId.trim())
+    setShowHistory(false)
+    
     setLoading(true)
     setSearched(true)
     setSelectedCategory('all')
     
     try {
-      // Fetch purchase history
       const response = await axios.get(`${API_BASE_URL}/customer/${customerId}/history`)
       const purchases = response.data.purchases || []
       setHistory(purchases)
@@ -100,12 +233,10 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
         }
       }
       
-      // Fetch customer summary (total spending, etc)
       try {
         const summaryResponse = await axios.get(`${API_BASE_URL}/customer/${customerId}/summary`)
         setCustomerSummary(summaryResponse.data)
       } catch {
-        // Calculate summary from history if endpoint not available
         const totalSpent = purchases.reduce((sum: number, item: Purchase) => sum + (item.price || 0), 0)
         const avgRating = purchases.length > 0 ? purchases.reduce((sum: number, item: Purchase) => sum + item.rating, 0) / purchases.length : 0
         const categoryCount: Record<string, number> = {}
@@ -128,6 +259,8 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     } catch (error) {
       console.error('Error:', error)
       if (showToast) showToast('Gagal mendapatkan history customer. Pastikan backend running', 'error')
+      setShowPreview(true)
+      setSearched(false)
     } finally {
       setLoading(false)
     }
@@ -143,7 +276,8 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
 
   // Export to CSV
   const exportToCSV = async () => {
-    if (filteredHistory.length === 0) {
+    const dataToExport = showPreview ? PREVIEW_HISTORY : filteredHistory
+    if (dataToExport.length === 0) {
       if (showToast) showToast('Tidak ada data untuk diexport', 'error')
       return
     }
@@ -151,7 +285,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     setExporting(true)
     try {
       const headers = ['Product Name', 'Category', 'Colour', 'Rating', 'Price', 'Purchase Date']
-      const rows = filteredHistory.map(item => [
+      const rows = dataToExport.map(item => [
         `"${item.product_name}"`,
         item.category,
         item.colour,
@@ -165,7 +299,8 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `customer_${customerId.slice(0, 10)}_history.csv`
+      const fileName = showPreview ? 'preview_history.csv' : `customer_${customerId.slice(0, 10)}_history.csv`
+      a.download = fileName
       a.click()
       URL.revokeObjectURL(url)
       if (showToast) showToast('History exported successfully! 📥', 'success')
@@ -177,7 +312,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
     }
   }
 
-  // Reorder product (add to cart / redirect to product)
+  // Reorder product
   const handleReorder = async (product: Purchase) => {
     setReordering(product.article_id)
     try {
@@ -194,6 +329,14 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount)
+  }
+
+  const selectHistoryItem = (id: string) => {
+    setCustomerId(id)
+    setShowHistory(false)
+    setTimeout(() => {
+      handleSearch()
+    }, 100)
   }
 
   return (
@@ -217,8 +360,8 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
           </p>
         </div>
 
-        {/* Search Section */}
-        <div style={{ maxWidth: 800, margin: '0 auto', marginBottom: 48 }}>
+        {/* Search Section with History */}
+        <div ref={searchContainerRef} style={{ maxWidth: 800, margin: '0 auto', marginBottom: 48, position: 'relative' }}>
           <div style={{ 
             display: 'flex', 
             gap: 12, 
@@ -226,10 +369,30 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
             padding: '6px',
             borderRadius: 60, 
             border: `1px solid ${border}`,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+            position: 'relative'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 20, gap: 8 }}>
               <Search size={20} color={primary} />
+              {searchHistory.length > 0 && (
+                <button
+                  className="history-button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowHistory(!showHistory)
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: 4
+                  }}
+                >
+                  <History size={16} color={showHistory ? primary : textLight} />
+                </button>
+              )}
             </div>
             <input
               className="customer-history-input"
@@ -248,6 +411,11 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                 fontFamily: 'monospace'
               }}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              onFocus={() => {
+                if (searchHistory.length > 0) {
+                  setShowHistory(true)
+                }
+              }}
             />
             <button 
               onClick={handleSearch} 
@@ -266,7 +434,208 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
               {loading ? 'Memuat...' : 'Cari'}
             </button>
           </div>
+
+          {/* Search History Dropdown */}
+          {showHistory && searchHistory.length > 0 && (
+            <div 
+              ref={historyDropdownRef}
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                marginTop: 8,
+                background: cardBg,
+                borderRadius: 16,
+                border: `1px solid ${border}`,
+                boxShadow: `0 8px 24px rgba(0,0,0,0.2)`,
+                zIndex: 1000,
+                overflow: 'hidden'
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: `1px solid ${border}`
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: textLight }}>Riwayat Pencarian</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    clearHistory()
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#ef4444',
+                    fontSize: 11,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <Trash2 size={12} /> Hapus semua
+                </button>
+              </div>
+              {searchHistory.map((id, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => selectHistoryItem(id)}
+                  style={{
+                    padding: '12px 16px',
+                    cursor: 'pointer',
+                    borderBottom: idx < searchHistory.length - 1 ? `1px solid ${border}` : 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = `${primary}10`}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <History size={14} color={primary} />
+                  <span style={{ fontSize: 12, fontFamily: 'monospace', color: text }}>{id.substring(0, 40)}...</span>
+                  <Clock size={12} color={textLight} style={{ marginLeft: 'auto' }} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* ========== PREVIEW SECTION ========== */}
+        {!searched && showPreview && (
+          <div style={{ marginTop: 32 }}>
+            {/* Contoh Customer ID */}
+            <div style={{ 
+              background: `linear-gradient(135deg, ${primary}05, ${primary}02)`,
+              borderRadius: 24, 
+              padding: '24px',
+              marginBottom: 28,
+              border: `1px solid ${border}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <Sparkles size={20} color={primary} />
+                <span style={{ fontSize: 15, fontWeight: 700, color: text }}>Coba dengan Contoh Customer ID</span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {EXAMPLE_CUSTOMERS.map((customer) => (
+                  <button
+                    key={customer.id}
+                    onClick={() => loadExampleCustomer(customer.id, customer.label)}
+                    style={{
+                      padding: '10px 24px',
+                      background: cardBg,
+                      border: `1px solid ${border}`,
+                      borderRadius: 40,
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: text,
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = primary
+                      e.currentTarget.style.color = 'white'
+                      e.currentTarget.style.borderColor = primary
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = cardBg
+                      e.currentTarget.style.color = text
+                      e.currentTarget.style.borderColor = border
+                    }}
+                  >
+                    {customer.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: textLight, textAlign: 'center', marginTop: 16 }}>
+                Klik salah satu contoh di atas untuk melihat riwayat pembelian
+              </p>
+            </div>
+
+            {/* Preview 5 Riwayat Pembelian */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <ShoppingBag size={18} color={primary} />
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: text, margin: 0 }}>
+                  5 Contoh Riwayat Pembelian
+                </h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {PREVIEW_HISTORY.map((item, idx) => (
+                  <div 
+                    key={idx}
+                    style={{ 
+                      background: cardBg, 
+                      borderRadius: 16, 
+                      padding: '16px 20px', 
+                      border: `1px solid ${border}`,
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = primary
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = border
+                      e.currentTarget.style.transform = 'translateY(0)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1 }}>
+                      <div style={{ 
+                        width: 40, 
+                        height: 40, 
+                        borderRadius: 12, 
+                        background: `${primary}10`, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center' 
+                      }}>
+                        <Package size={20} color={primary} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: text }}>{item.product_name}</div>
+                        <div style={{ display: 'flex', gap: 8, fontSize: 11, color: textLight, marginTop: 4 }}>
+                          <span>{item.category}</span>
+                          <span>•</span>
+                          <span>{item.colour}</span>
+                          {item.price && (
+                            <>
+                              <span>•</span>
+                              <span style={{ color: '#10b981', fontWeight: 500 }}>{formatCurrency(item.price)}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        {[...Array(item.rating)].map((_, i) => (
+                          <Star key={i} size={14} fill="#fbbf24" color="#fbbf24" />
+                        ))}
+                        {[...Array(5 - item.rating)].map((_, i) => (
+                          <Star key={i + item.rating} size={14} fill="#e2e8f0" color="#e2e8f0" />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: textLight, textAlign: 'center', marginTop: 20 }}>
+                💡 Masukkan Customer ID di atas untuk melihat data spesifik
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {loading && (
@@ -283,12 +652,32 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
             </div>
             <h3 style={{ fontSize: 20, fontWeight: 700, color: text, marginBottom: 8 }}>Tidak Ada Riwayat Pembelian</h3>
             <p style={{ fontSize: 15, color: textLight }}>Customer ini belum memiliki riwayat pembelian</p>
-            <p style={{ fontSize: 13, color: textLight, marginTop: 8 }}>Pastikan Customer ID valid dan memiliki minimal 3 transaksi</p>
+            <button
+              onClick={() => {
+                setShowPreview(true)
+                setSearched(false)
+                setHistory([])
+                setCustomerSummary(null)
+              }}
+              style={{
+                marginTop: 16,
+                background: `${primary}10`,
+                border: 'none',
+                padding: '8px 20px',
+                borderRadius: 30,
+                color: primary,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: 500
+              }}
+            >
+              Lihat Contoh Riwayat
+            </button>
           </div>
         )}
 
         {/* Results Section */}
-        {history.length > 0 && (
+        {!showPreview && history.length > 0 && (
           <>
             {/* Header with Actions */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
@@ -388,7 +777,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                 {/* Export Button */}
                 <button
                   onClick={exportToCSV}
-                  disabled={exporting || filteredHistory.length === 0}
+                  disabled={exporting}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -411,7 +800,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
             </div>
 
             {/* Customer Summary Cards */}
-            {customerSummary && (
+            {(customerSummary || showPreview) && (
               <div style={{ 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
@@ -424,7 +813,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     <span style={{ fontSize: 12, color: textLight }}>Total Spending</span>
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 800, color: text }}>
-                    {formatCurrency(customerSummary.total_spent)}
+                    {showPreview ? formatCurrency(PREVIEW_SUMMARY.total_spent) : formatCurrency(customerSummary?.total_spent || 0)}
                   </div>
                 </div>
 
@@ -434,7 +823,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     <span style={{ fontSize: 12, color: textLight }}>Total Items</span>
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 800, color: text }}>
-                    {customerSummary.total_items}
+                    {showPreview ? PREVIEW_SUMMARY.total_items : customerSummary?.total_items || 0}
                   </div>
                 </div>
 
@@ -444,7 +833,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     <span style={{ fontSize: 12, color: textLight }}>Avg Rating</span>
                   </div>
                   <div style={{ fontSize: 24, fontWeight: 800, color: text }}>
-                    {customerSummary.avg_rating.toFixed(1)} / 5
+                    {showPreview ? PREVIEW_SUMMARY.avg_rating.toFixed(1) : (customerSummary?.avg_rating || 0).toFixed(1)} / 5
                   </div>
                 </div>
 
@@ -454,16 +843,18 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     <span style={{ fontSize: 12, color: textLight }}>Favorite</span>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: text }}>
-                    {customerSummary.favorite_category}
+                    {showPreview ? PREVIEW_SUMMARY.favorite_category : customerSummary?.favorite_category || '-'}
                   </div>
-                  <div style={{ fontSize: 12, color: textLight }}>{customerSummary.favorite_colour}</div>
+                  <div style={{ fontSize: 12, color: textLight }}>
+                    {showPreview ? PREVIEW_SUMMARY.favorite_colour : customerSummary?.favorite_colour || '-'}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* History List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {filteredHistory.map((item, idx) => (
+              {(showPreview ? PREVIEW_HISTORY : filteredHistory).map((item, idx) => (
                 <div 
                   key={idx} 
                   style={{ 
@@ -479,7 +870,6 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     gap: 16
                   }}
                 >
-                  {/* Left - Product Info */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, minWidth: 200 }}>
                     <div style={{ 
                       width: 52, 
@@ -508,9 +898,7 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                     </div>
                   </div>
 
-                  {/* Right - Actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {/* Rating */}
                     <div style={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -524,7 +912,6 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
                       <span style={{ fontSize: 11, color: textLight }}>/5</span>
                     </div>
 
-                    {/* Reorder Button */}
                     <button
                       onClick={() => handleReorder(item)}
                       disabled={reordering === item.article_id}
@@ -556,7 +943,6 @@ export default function CustomerHistoryPage({ theme, showToast }: { theme: strin
               ))}
             </div>
 
-            {/* No results after filter */}
             {filteredHistory.length === 0 && selectedCategory !== 'all' && (
               <div style={{ textAlign: 'center', padding: 40, background: cardBg, borderRadius: 24, border: `1px solid ${border}` }}>
                 <Filter size={32} color={textLight} style={{ opacity: 0.5, marginBottom: 12 }} />
